@@ -261,23 +261,12 @@ class DataLoader(object):
             def _load_function(idx):
                 idx = idx % len(self.dataset)
                 img0, _ = self.dataset[idx]
-                rotated_imgs = [
-                    self.transform(img0),
-                    self.transform(rotate_img(img0, 90)),
-                    self.transform(rotate_img(img0, 180)),
-                    self.transform(rotate_img(img0, 270))
-                ]
-                rotation_labels = torch.LongTensor([0, 1, 2, 3])
-                return torch.stack(rotated_imgs, dim=0), rotation_labels
+                labels = torch.LongTensor([0])
+                return img0, labels
 
-            def _collate_fun(batch):
-                batch = default_collate(batch)
-                assert (len(batch) == 2)
-                batch_size, rotations, channels, height, width = batch[0].size()
-                batch[0] = batch[0].view([batch_size * rotations, channels, height, width])
-                batch[1] = batch[1].view([batch_size * rotations])
-                return batch
-        else:  # supervised mode
+            _collate_fun = default_collate
+
+       else:  # supervised mode
             # if in supervised mode define a loader function that given the
             # index of an image it returns the image and its categorical label
             def _load_function(idx):
