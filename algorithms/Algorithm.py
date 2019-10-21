@@ -76,6 +76,7 @@ class Algorithm():
             self.optim_params[key] = val['optim_params'] if ('optim_params' in val) else None
             pretrained_path = val['pretrained'] if ('pretrained' in val) else None
             self.networks[key] = self.init_network(def_file, net_opt, pretrained_path, key)
+            print (self.networks[key])
 
     def init_network(self, net_def_file, net_opt, pretrained_path, key):
         self.logger.info('==> Initiliaze network %s from file %s with opts: %s' % (key, net_def_file, net_opt))

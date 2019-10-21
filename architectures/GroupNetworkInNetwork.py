@@ -15,29 +15,27 @@ class BasicBlock(nn.Module):
         conv = P4ConvP4 if not first else P4ConvZ2
         self.layers.add_module('Conv', conv(in_planes, out_planes, \
                                                  kernel_size=kernel_size, stride=1, padding=padding, bias=False))
-        self.layers.add_module('BatchNorm', nn.BatchNorm2d(out_planes))
+        self.layers.add_module('BatchNorm', nn.BatchNorm3d(out_planes))
         self.layers.add_module('ReLU', nn.ReLU(inplace=True))
 
     def forward(self, x):
         return self.layers(x)
 
-        feat = F.avg_pool2d(feat, feat.size(3)).view(-1, self.nChannels)
-
-
 class PoolAndCls(nn.Module):
-    def __init__(self, nCannels):
-        super(GlobalAveragePooling, self).__init__()
-        self.cls = nn.Conv1d(nChannels, 1)
+    def __init__(self, nChannels):
+        super(PoolAndCls, self).__init__()
+        self.cls = nn.Conv1d(nChannels, 1, kernel_size=1)
     def forward(self, feat):
         num_channels = feat.size(1)
-        out = F.avg_pool3d(feat, (1, feat.size(3), feat.size(4))).view(-1, num_channels, feat.size(2))
+        out = F.avg_pool3d(feat, (1, feat.size(3), feat.size(4)))
+        out = out.view(-1, num_channels, feat.size(2))
         out = self.cls(out).squeeze(1)
         return out
 
 
 class GroupNetworkInNetwork(nn.Module):
     def __init__(self, opt):
-        super(NetworkInNetwork, self).__init__()
+        super(GroupNetworkInNetwork, self).__init__()
 
         num_classes = opt['num_classes']
         num_inchannels = opt['num_inchannels'] if ('num_inchannels' in opt) else 3
@@ -51,7 +49,7 @@ class GroupNetworkInNetwork(nn.Module):
 
         blocks = [nn.Sequential() for i in range(num_stages)]
         # 1st block
-        blocks[0].add_module('Block1_ConvB1', BasicBlock(num_inchannels, nChannels, 5))
+        blocks[0].add_module('Block1_ConvB1', BasicBlock(num_inchannels, nChannels, 5, first=True))
         blocks[0].add_module('Block1_ConvB2', BasicBlock(nChannels, nChannels2, 1))
         blocks[0].add_module('Block1_ConvB3', BasicBlock(nChannels2, nChannels3, 1))
         blocks[0].add_module('Block1_MaxPool', nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1)))
@@ -116,6 +114,7 @@ class GroupNetworkInNetwork(nn.Module):
                 order as in `out_feat_keys`. If a single output feature was
                 asked then `out_feats` is that output feature (and not a list).
         """
+        #print (x.shape)
         out_feat_keys, max_out_feat = self._parse_out_keys_arg(out_feat_keys)
         out_feats = [None] * len(out_feat_keys)
 
@@ -124,14 +123,14 @@ class GroupNetworkInNetwork(nn.Module):
             feat = self._feature_blocks[f](feat)
             key = self.all_feat_names[f]
             if key in out_feat_keys:
-                out_feats[out_feat_keys.index(key)] = feat.mena(dim=2) if key != 'classifier' else feat
+                out_feats[out_feat_keys.index(key)] = feat.view(feat.shape[0], -1, feat.shape[-2], feat.shape[-1]) if key != 'classifier' else feat
 
         out_feats = out_feats[0] if len(out_feats) == 1 else out_feats
         return out_feats
 
     def weight_initialization(self):
         for m in self.modules():
-            if isinstance(m, P4ConvP4) or isinstance(m, P4ConvZ2)
+            if isinstance(m, P4ConvP4) or isinstance(m, P4ConvZ2):
                 if m.weight.requires_grad:
                     n = 4 * m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                     m.weight.data.normal_(0, math.sqrt(2. / n))
@@ -146,7 +145,7 @@ class GroupNetworkInNetwork(nn.Module):
 
 
 def create_model(opt):
-    return NetworkInNetwork(opt)
+    return GroupNetworkInNetwork(opt)
 
 
 if __name__ == '__main__':
